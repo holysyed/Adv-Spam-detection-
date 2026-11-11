@@ -31,8 +31,14 @@ For datasets with at least 20 rows, the script reports metrics on a stratified h
 
 Messages are processed on the server and are not stored by the application. Avoid sending sensitive content to any hosted copy. This development server is for local use.
 
-## Experimental photo scanner
+## Photo scanner and email screenshots
 
-Install the optional image dependencies with `pip install -r requirements-photo.txt`, then restart the app. Choose or drop a JPEG, PNG, or WebP face photo (up to 8 MB and 20 megapixels) and select **Scan photo**. The first scan downloads the pretrained [deepfake vs real image model](https://huggingface.co/dima806/deepfake_vs_real_image_detection) from Hugging Face and may take time and substantial disk space; later scans use the local cache. Photos are processed in memory on the server and are not saved by the app. The image itself is not sent to Hugging Face by this application.
+The `/photo` page uses a quantized ONNX version of the [deepfake vs real face image model](https://huggingface.co/dima806/deepfake_vs_real_image_detection). The model is downloaded on the first scan and runs in the browser. Photos are not uploaded by the app. It accepts JPG, PNG, and WebP files up to 8 MB.
 
-The model was trained on older face images and may miss newer manipulation techniques or incorrectly flag real photos. Its score is an experimental signal, not proof of authenticity. It is not designed for video, audio, or arbitrary image editing detection. Verify important claims with independent evidence.
+The model was trained on older face images and can be wrong. Its score is an experimental signal, not proof of authenticity; check independent evidence. The model is intended for face photos and does not analyze video or audio.
+
+On the message page, choose an email screenshot to extract English text in the browser using Tesseract.js. Review the extracted text before selecting **Check the vibe**. The app sends the resulting text to the server for classification only when you click the button. OCR can make mistakes; longer text is limited to 5,000 characters. The first use downloads OCR resources.
+
+## Vercel deployment
+
+`vercel.json` configures the Flask app. The Vercel version builds the small sample spam model in memory when no `model.joblib` exists. Source assets are under `public/static/`. These sample predictions are not suitable for production spam filtering.

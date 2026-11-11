@@ -4,9 +4,22 @@ import io
 import joblib
 from flask import Flask, jsonify, render_template, request
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='public/static', static_url_path='/static')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
 MODEL = Path(__file__).with_name('model.joblib')
+
+@lru_cache(maxsize=1)
+def spam_model():
+    if MODEL.exists():
+        return joblib.load(MODEL)
+    from train import DEMO
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    labels, messages = zip(*DEMO)
+    pipeline = make_pipeline(TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True), LogisticRegression(class_weight='balanced', max_iter=1000))
+    pipeline.fit(messages, labels)
+    return {'pipeline': pipeline, 'source': 'tiny demo dataset'}
 
 @lru_cache(maxsize=1)
 def photo_model():
@@ -60,6 +73,10 @@ def analyze_photo():
 def home():
     return render_template('index.html')
 
+@app.get('/photo')
+def photo_page():
+    return render_template('photo-page.html')
+
 @app.post('/api/classify')
 def classify():
     data = request.get_json(silent=True) or {}
@@ -68,9 +85,7 @@ def classify():
     message = data.get('message', '')
     if not isinstance(message, str) or not message.strip() or len(message) > 5000:
         return jsonify(error='Enter a message between 1 and 5,000 characters.'), 400
-    if not MODEL.exists():
-        return jsonify(error='Model not found. Run python train.py first.'), 503
-    bundle = joblib.load(MODEL)
+    bundle = spam_model()
     pipeline = bundle['pipeline']
     vectorizer, classifier = pipeline.steps[0][1], pipeline.steps[1][1]
     features = vectorizer.transform([message])
