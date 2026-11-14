@@ -2,6 +2,8 @@
 
 # Vibecheck — Spam Message Classifier
 
+**Live demo:** [vabecheck.vercel.app](https://vabecheck.vercel.app/) · [Photo scanner](https://vabecheck.vercel.app/photo)
+
 A Flask app that classifies messages using TF-IDF features and logistic regression. The interface supports keyboard shortcuts, touch gestures, example messages, a spam score, and terms that contributed toward the spam prediction.
 
 ## Run locally
