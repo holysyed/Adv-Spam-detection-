@@ -7,19 +7,17 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__, static_folder='public/static', static_url_path='/static')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
 MODEL = Path(__file__).with_name('model.joblib')
+BUNDLED_MODEL = Path(__file__).with_name('sms-spam.joblib')
 
 @lru_cache(maxsize=1)
 def spam_model():
-    if MODEL.exists():
-        return joblib.load(MODEL)
-    from train import DEMO
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import make_pipeline
-    labels, messages = zip(*DEMO)
-    pipeline = make_pipeline(TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True), LogisticRegression(class_weight='balanced', max_iter=1000))
-    pipeline.fit(messages, labels)
-    return {'pipeline': pipeline, 'source': 'tiny demo dataset'}
+    bundle = joblib.load(MODEL) if MODEL.exists() else None
+    if bundle is None or bundle.get('source') == 'tiny demo dataset':
+        bundle = joblib.load(BUNDLED_MODEL)
+    vectorizer = bundle['pipeline'].steps[0][1]
+    # The word block comes first in the combined model. Older CSV models are word-only.
+    words = dict(vectorizer.transformer_list)['word'] if hasattr(vectorizer, 'transformer_list') else vectorizer
+    return bundle, words.get_feature_names_out()
 
 @lru_cache(maxsize=1)
 def photo_model():
@@ -85,14 +83,14 @@ def classify():
     message = data.get('message', '')
     if not isinstance(message, str) or not message.strip() or len(message) > 5000:
         return jsonify(error='Enter a message between 1 and 5,000 characters.'), 400
-    bundle = spam_model()
+    bundle, words = spam_model()
     pipeline = bundle['pipeline']
     vectorizer, classifier = pipeline.steps[0][1], pipeline.steps[1][1]
     features = vectorizer.transform([message])
     probability = float(classifier.predict_proba(features)[0][list(classifier.classes_).index('spam')])
     contributions = features.multiply(classifier.coef_[0]).tocoo()
-    names = vectorizer.get_feature_names_out()
-    signals = sorted(((float(v), names[i]) for i, v in zip(contributions.col, contributions.data) if v > 0), reverse=True)[:4]
+    signals = sorted(((float(v), words[i]) for i, v in zip(contributions.col, contributions.data)
+                      if i < len(words) and v > 0), reverse=True)[:4]
     return jsonify(label='spam' if probability >= .5 else 'ham', spam_score=round(probability * 100, 1), signals=[word for _, word in signals], source=bundle['source'])
 
 if __name__ == '__main__':

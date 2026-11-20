@@ -1,1 +1,1 @@
-{"framework":"flask","functions":{"app.py":{"includeFiles":"templates/**"}}}
+{"framework":"flask","functions":{"app.py":{"includeFiles":"{templates/**,sms-spam.joblib}"}}}
