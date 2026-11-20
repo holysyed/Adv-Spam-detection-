@@ -1,6 +1,7 @@
 from pathlib import Path
 from functools import lru_cache
 import io
+import os
 import joblib
 from flask import Flask, jsonify, render_template, request
 
@@ -10,10 +11,14 @@ MODEL = Path(__file__).with_name('model.joblib')
 BUNDLED_MODEL = Path(__file__).with_name('sms-spam.joblib')
 
 @lru_cache(maxsize=1)
+def bundled_spam_model():
+    return joblib.load(BUNDLED_MODEL)
+
+@lru_cache(maxsize=1)
 def spam_model():
     bundle = joblib.load(MODEL) if MODEL.exists() else None
     if bundle is None or bundle.get('source') == 'tiny demo dataset':
-        bundle = joblib.load(BUNDLED_MODEL)
+        bundle = bundled_spam_model()
     vectorizer = bundle['pipeline'].steps[0][1]
     # The word block comes first in the combined model. Older CSV models are word-only.
     words = dict(vectorizer.transformer_list)['word'] if hasattr(vectorizer, 'transformer_list') else vectorizer
@@ -69,7 +74,32 @@ def analyze_photo():
 
 @app.get('/')
 def home():
-    return render_template('index.html')
+    return render_template('index.html', gmail_client_id=os.getenv('GMAIL_CLIENT_ID', '').strip())
+
+@app.get('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+@lru_cache(maxsize=1)
+def gmail_model_weights():
+    # Serve only the public bundled model. Local overrides may contain private vocabulary.
+    bundle = bundled_spam_model()
+    features, classifier = (step[1] for step in bundle['pipeline'].steps)
+    blocks = {}
+    offset = 0
+    for name, vectorizer in features.transformer_list:
+        names = vectorizer.get_feature_names_out()
+        weights = classifier.coef_[0, offset:offset + len(names)]
+        blocks[name] = dict(zip(names, zip(vectorizer.idf_.tolist(), weights.tolist())))
+        offset += len(names)
+    return dict(source=bundle['source'], intercept=float(classifier.intercept_[0]), **blocks)
+
+@app.get('/api/gmail-model')
+def gmail_model():
+    response = jsonify(gmail_model_weights())
+    response.cache_control.public = True
+    response.cache_control.max_age = 300
+    return response
 
 @app.get('/photo')
 def photo_page():

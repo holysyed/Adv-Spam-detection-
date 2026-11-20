@@ -62,3 +62,17 @@ On the message page, choose an email screenshot to extract English text in the b
 ## Vercel deployment
 
 `vercel.json` includes the trained `sms-spam.joblib` in the Flask function. The first message scan loads the weights and subsequent scans reuse the model. Source assets are under `public/static/`.
+
+## Connect Gmail
+
+Open **From Gmail** below the message box. Connect your Google account, choose an inbox email, and select **Scan email** to see the result in the same card used by the text scanner. Use **Load more** to browse older inbox messages.
+
+The browser lists subjects and senders and fetches a message body only when you request a scan. The bundled classifier runs in the browser with up to 5,000 characters of subject and body text. It processes readable text and skips attachments. Vibecheck keeps the temporary access token in memory and clears it on disconnect or reload. Disconnect also requests revocation from Google. See the site's [privacy page](https://vabecheck.vercel.app/privacy).
+
+### Enable the connection
+
+1. In a [Google Cloud project](https://console.cloud.google.com/), enable the Gmail API. Configure the OAuth consent screen and add the `https://www.googleapis.com/auth/gmail.readonly` scope. For a private trial, keep the app in Testing and add the Google accounts that will use it as test users.
+2. Create an OAuth client of type **Web application**. Add `https://vabecheck.vercel.app` as an authorized JavaScript origin. For local use, also add the exact origin used by the browser, such as `http://localhost:5000`. The browser flow uses the public client ID and requires no redirect URI or client secret.
+3. Set `GMAIL_CLIENT_ID` to the public client ID in Vercel's Production environment and redeploy. For local use, set the same environment variable before running Flask. When the variable is missing, the Gmail panel displays its setup status.
+
+Google classifies Gmail read-only access as a restricted scope and requires verification for public use. [Google Identity Services setup](https://developers.google.com/identity/oauth2/web/guides/get-google-api-clientid) · [Gmail API scopes](https://developers.google.com/workspace/gmail/api/auth/scopes)
